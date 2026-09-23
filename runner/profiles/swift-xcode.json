@@ -1,0 +1,22 @@
+{
+  "name": "swift-xcode",
+  "description": "A Swift package that is also an iOS app target. Deliberately declares no test actions: how this project is tested is documented in its own repository docs, and a second copy here would drift from it. Real work goes through an independently enabled executor action (claude_task or codex_task), which runs inside the workspace and reads that documentation. What remains is one cheap way to see where the repository stands without waking an executor.",
+
+  "allowed_roots": [
+    "docs/"
+  ],
+  "allowed_files": [
+    "README.md"
+  ],
+
+  "actions": {
+    "git_log": {
+      "kind": "process",
+      "file": "/usr/bin/git",
+      "args": ["log", "--oneline", "-15"],
+      "timeout_seconds": 60,
+      "exit_status_map": { "0": "success" },
+      "default_status": "failure"
+    }
+  }
+}

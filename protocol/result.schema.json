@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:constrained-agent-runner:protocol:result:v1",
+  "title": "gpt-loop job result",
+  "description": "Posted as a bounded broker issue comment and stored complete under the platform GPTLoop state root/results/<job_id>.json. For migrated project work, work_ref identifies the canonical consumer-repository owner without granting workspace authority.",
+  "type": "object",
+  "required": ["protocol_version", "status", "ok", "action", "started_at", "finished_at"],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "job_id": { "type": "string" },
+    "issue_number": { "type": "integer" },
+    "request_sha256": {
+      "type": "string",
+      "description": "SHA-256 of the exact request body that executed. This is what makes an issue-edit race detectable rather than silent."
+    },
+    "project": { "type": "string" },
+    "work_ref": {
+      "type": "object",
+      "description": "Validated/normalized non-authorizing canonical work reference echoed from the immutable request.",
+      "required": ["repository"],
+      "properties": {
+        "repository": { "type": "string" },
+        "issue_number": { "type": ["integer", "null"] },
+        "path": { "type": "string" }
+      }
+    },
+    "action": { "type": "string" },
+    "status": {
+      "enum": [
+        "success",
+        "failure",
+        "hard_blocker",
+        "continuation",
+        "inapplicable",
+        "environment_error",
+        "denied",
+        "timeout",
+        "invalid_request",
+        "quota_wait"
+      ],
+      "description": "Deliberately richer than ok/not-ok. `inapplicable` exists because a benchmark that cannot apply to the current inputs is not a regression; `environment_error` exists because a missing interpreter is not a project failure; `quota_wait` is a non-verdict account-window wait; `continuation` means one bounded executor slice ended while the packet remains durably non-terminal; and `hard_blocker` is a terminal packet-level blocker."
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "True only when status is `success`. A convenience mirror, never the primary signal."
+    },
+    "workspace": { "type": "string" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "error": { "type": "string" },
+    "truncated": {
+      "type": "boolean",
+      "description": "True when this payload does not contain everything, including when an individual step's output was clipped."
+    },
+    "full_result_sha256": { "type": "string" },
+    "full_result_id": {
+      "type": "string",
+      "description": "Retrieve more with action `read_result` and this id."
+    },
+    "retrieve_with": { "type": "string" },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "exit_code"],
+        "properties": {
+          "name": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "duration_ms": { "type": "integer" },
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" },
+          "truncated": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body { width: 520px; }
+    label { display: block; margin: 12px 0 4px; color: #6b6b70; }
+    input[type=text], input[type=password] {
+      width: 100%; box-sizing: border-box; padding: 6px 8px;
+      font: inherit; border: 1px solid #d0d0d5; border-radius: 6px;
+      background: #fff; color: inherit;
+    }
+    .hint { font-size: 11px; color: #8a8a90; margin-top: 3px; }
+    #saved { color: #1a7f37; margin-left: 10px; }
+    @media (prefers-color-scheme: dark) {
+      input[type=text], input[type=password] { background: #2c2c2e; border-color: #3a3a3c; }
+    }
+  </style>
+</head>
+<body>
+  <h1>GPT Loop Wake — settings</h1>
+
+  <label for="targetUrl">Target ChatGPT conversation URL</label>
+  <input id="targetUrl" type="text" placeholder="https://chatgpt.com/c/…">
+  <div class="hint">The conversation that acts as the brain. Stored locally only; never committed.</div>
+
+  <label for="baseUrl">Wake daemon URL</label>
+  <input id="baseUrl" type="text" placeholder="http://127.0.0.1:8777">
+  <div class="hint">Loopback only.</div>
+
+  <label for="token">Daemon token</label>
+  <input id="token" type="password" placeholder="paste from %LOCALAPPDATA%\GPTLoop\token.txt">
+  <div class="hint">Read from the state directory. Leave blank to keep the current value.</div>
+
+  <label><input id="enabled" type="checkbox"> Wake enabled</label>
+
+  <div class="actions">
+    <button id="save">Save</button><span id="saved"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

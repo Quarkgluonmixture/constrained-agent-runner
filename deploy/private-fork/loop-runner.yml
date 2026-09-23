@@ -1,0 +1,189 @@
+# TEMPLATE -- NOT ACTIVE IN THIS REPOSITORY.
+#
+# This workflow executes jobs on a SELF-HOSTED runner on your own machine.
+# Only install it in a PRIVATE repository that you alone can open issues and
+# pull requests in: copy it to `.github/workflows/loop-runner.yml` of your
+# private copy and register the runner with scripts/register-runner.ps1.
+#
+# Never enable a self-hosted runner workflow in a public repository: anyone can
+# open a pull request there, and a workflow that runs on your runner would run
+# their code on your machine. The owner check below narrows who can trigger a
+# job; it is defence in depth, not a substitute for a private repository.
+#
+name: GPT Loop Runner
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Existing durable job UUID to continue'
+        required: true
+        type: string
+      issue_number:
+        description: 'Originating issue number'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+# No GitHub concurrency group: a newer pending run must never replace an older
+# one. Machine serialization stays in the dispatcher. Durable packet ownership
+# is an additional persistent lease, not a replacement for that mutex.
+
+jobs:
+  run-job:
+    # An issue is executable only when opened by the owner. workflow_dispatch is
+    # continuation-only: it carries no prompt/path, just a UUID whose immutable
+    # request must already exist on the self-hosted machine.
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       (github.actor == github.repository_owner || github.actor == 'github-actions[bot]')) ||
+      (startsWith(github.event.issue.title, '[GPT-LOOP]') &&
+       github.event.issue.user.login == github.repository_owner)
+    runs-on: [self-hosted, windows, x64, gpt-loop]
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out control-plane code
+        uses: actions/checkout@v4
+
+      - name: Resolve immutable request
+        shell: pwsh
+        env:
+          REQUEST_BODY: ${{ github.event.issue.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          RESUME_JOB_ID: ${{ inputs.job_id }}
+          RESUME_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          OPENED_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          $stateRoot = Join-Path $env:LOCALAPPDATA 'GPTLoop'
+          $requestsDir = Join-Path $stateRoot 'requests'
+          New-Item -ItemType Directory -Force -Path $requestsDir | Out-Null
+
+          if ($env:EVENT_NAME -eq 'issues') {
+            $raw = [string]$env:REQUEST_BODY
+            try { $parsed = $raw | ConvertFrom-Json } catch { throw "issue body is not valid JSON" }
+            $jobId = [string]$parsed.job_id
+            if ($jobId -notmatch '^[0-9a-fA-F-]{36}$') { throw 'request.job_id must be a UUID' }
+            $requestPath = Join-Path $requestsDir "$jobId.json"
+            if (Test-Path -LiteralPath $requestPath) {
+              $existing = [IO.File]::ReadAllText($requestPath, [Text.Encoding]::UTF8)
+              if ($existing -ne $raw) { throw "job_id collision: persisted request differs for $jobId" }
+            } else {
+              [IO.File]::WriteAllText($requestPath, $raw, [Text.UTF8Encoding]::new($false))
+            }
+            $issueNumber = [int]$env:OPENED_ISSUE_NUMBER
+          } else {
+            $jobId = [string]$env:RESUME_JOB_ID
+            if ($jobId -notmatch '^[0-9a-fA-F-]{36}$') { throw 'workflow_dispatch.job_id must be a UUID' }
+            $requestPath = Join-Path $requestsDir "$jobId.json"
+            if (-not (Test-Path -LiteralPath $requestPath -PathType Leaf)) {
+              throw "continuation request is not present on this machine: $jobId"
+            }
+            $issueNumber = 0
+            if (-not [int]::TryParse([string]$env:RESUME_ISSUE_NUMBER, [ref]$issueNumber) -or $issueNumber -lt 1) {
+              throw 'workflow_dispatch.issue_number must name the originating issue'
+            }
+          }
+
+          $resultPath = Join-Path $env:RUNNER_TEMP "gptloop-result-$jobId.json"
+          "REQUEST_PATH=$requestPath" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "RESULT_PATH=$resultPath" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "JOB_ID=$jobId" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "ISSUE_NUMBER=$issueNumber" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Dispatch the constrained local action
+        id: dispatch
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          & .\runner\dispatch.ps1 -RequestPath $env:REQUEST_PATH -ResultPath $env:RESULT_PATH -IssueNumber ([int]$env:ISSUE_NUMBER)
+
+      - name: Read control-plane status
+        id: result
+        if: always()
+        shell: pwsh
+        run: |
+          $status = 'environment_error'; $ok = $false
+          if ($env:RESULT_PATH -and (Test-Path -LiteralPath $env:RESULT_PATH)) {
+            try {
+              $r = Get-Content -LiteralPath $env:RESULT_PATH -Raw -Encoding utf8 | ConvertFrom-Json
+              $status = [string]$r.status; $ok = [bool]$r.ok
+            } catch { }
+          }
+          "status=$status" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "ok=$($ok.ToString().ToLowerInvariant())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Schedule the next execution slice
+        id: continue
+        if: steps.result.outputs.status == 'continuation'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ref = context.ref.replace('refs/heads/', '');
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'loop-runner.yml',
+              ref,
+              inputs: { job_id: process.env.JOB_ID, issue_number: process.env.ISSUE_NUMBER },
+            });
+
+      - name: Comment terminal result and close the issue
+        if: >-
+          always() &&
+          steps.result.outputs.status != 'continuation' &&
+          steps.result.outputs.status != 'quota_wait'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let result = JSON.stringify({protocol_version:1,status:'environment_error',ok:false,error:'the runner produced no result file'}, null, 2);
+            if (process.env.RESULT_PATH && fs.existsSync(process.env.RESULT_PATH)) result = fs.readFileSync(process.env.RESULT_PATH, 'utf8');
+            const MAX=60000; let shown=result, suffix='';
+            if (shown.length>MAX) { shown=shown.slice(0,MAX); suffix='\n\n_Truncated. Use `action: read_result` with this job_id to retrieve more._'; }
+            const issue = Number(process.env.ISSUE_NUMBER);
+            await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:issue,body:`### gpt-loop result\n\n\`\`\`json\n${shown}\n\`\`\`${suffix}`});
+            await github.rest.issues.update({owner:context.repo.owner,repo:context.repo.repo,issue_number:issue,state:'closed'});
+
+      - name: Notify local wake daemon only for packet terminal
+        if: >-
+          always() &&
+          steps.result.outputs.status != 'continuation' &&
+          steps.result.outputs.status != 'quota_wait'
+        shell: pwsh
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          $stateRoot = Join-Path $env:LOCALAPPDATA 'GPTLoop'; $tokenPath = Join-Path $stateRoot 'token.txt'
+          if (-not (Test-Path -LiteralPath $tokenPath)) { Write-Host 'Wake daemon not installed; skipping.'; exit 0 }
+          $port=8777; $configPath=Join-Path $stateRoot 'config\daemon.json'
+          if (Test-Path $configPath) { try { $port=[int](Get-Content $configPath -Raw | ConvertFrom-Json).port } catch { } }
+          $status='environment_error'; $action='unknown'; $ok=$false; $jobId=$env:JOB_ID
+          if (Test-Path $env:RESULT_PATH) {
+            try { $r=Get-Content $env:RESULT_PATH -Raw -Encoding utf8 | ConvertFrom-Json; $status=[string]$r.status; $action=[string]$r.action; $ok=[bool]$r.ok; $jobId=[string]$r.job_id } catch { }
+          }
+          $payload=@{event_id="$env:RUN_ID`:$env:RUN_ATTEMPT`:$env:ISSUE_NUMBER";issue_number=[int]$env:ISSUE_NUMBER;action=$action;status=$status;ok=$ok;job_id=$jobId;run_id=[string]$env:RUN_ID;timestamp=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()} | ConvertTo-Json -Compress
+          try {
+            $token=(Get-Content $tokenPath -Raw).Trim()
+            Invoke-RestMethod -Uri "http://127.0.0.1:$port/event" -Method Post -Headers @{'X-GPTLoop-Token'=$token} -ContentType 'application/json' -Body $payload -TimeoutSec 10 | Out-Null
+          } catch { Write-Host "Wake notification failed: $($_.Exception.Message)" }
+
+      - name: Fail only terminal failures or a broken continuation transport
+        if: always()
+        shell: pwsh
+        run: |
+          $status='${{ steps.result.outputs.status }}'
+          if ($status -eq 'continuation') {
+            if ('${{ steps.continue.outcome }}' -ne 'success') { throw 'continuation was durable locally but the next workflow slice could not be dispatched; watchdog/recovery must inspect the existing execution' }
+            exit 0
+          }
+          if ($status -eq 'quota_wait') { Write-Host 'quota_wait is nonterminal; deployment retry policy owns re-entry'; exit 0 }
+          if ('${{ steps.result.outputs.ok }}' -ne 'true') { throw "gpt-loop terminal status: $status" }

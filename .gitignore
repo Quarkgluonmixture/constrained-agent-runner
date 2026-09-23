@@ -1,0 +1,24 @@
+# Local state never belongs in the repository.
+# The real state root is %LOCALAPPDATA%\GPTLoop; these guard against a stray copy.
+state/
+events/
+results/
+logs/
+*.log
+token.txt
+config.local.json
+projects.json
+
+# Local extension configuration carries the token and the private conversation URL.
+wake/extension/config.local.json
+
+# Environments and build artifacts
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Test scratch
+tests/**/_tmp/
+
+.DS_Store

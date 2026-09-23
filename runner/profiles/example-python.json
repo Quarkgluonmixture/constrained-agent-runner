@@ -1,0 +1,90 @@
+{
+  "name": "example-python",
+  "description": "Profile for the bundled examples/python-project fixture. It extends the plain python profile with actions the regression suite needs (a deliberate failure, a hang, and a large-output producer). Real projects should use the 'python' profile.",
+
+  "allowed_roots": [
+    "src/",
+    "tests/",
+    "docs/",
+    "scripts/"
+  ],
+  "allowed_files": [
+    "README.md",
+    "pyproject.toml",
+    "requirements.txt",
+    "Makefile"
+  ],
+
+  "env": {
+    "PYTHONPATH": "{workspace}/src"
+  },
+
+  "actions": {
+    "test": {
+      "kind": "python_module",
+      "module": "pytest",
+      "args": ["-q"],
+      "interpreter": "test",
+      "timeout_seconds": 900,
+      "exit_status_map": {
+        "0": "success",
+        "1": "failure",
+        "2": "environment_error",
+        "3": "environment_error",
+        "4": "invalid_request",
+        "5": "inapplicable"
+      },
+      "default_status": "failure"
+    },
+
+    "version": {
+      "kind": "python_module",
+      "module": "gptloop_example.version",
+      "args": [],
+      "interpreter": "runtime",
+      "timeout_seconds": 60
+    },
+
+    "always_fails": {
+      "kind": "python_module",
+      "module": "gptloop_example.always_fails",
+      "args": [],
+      "interpreter": "runtime",
+      "timeout_seconds": 60,
+      "default_status": "failure"
+    },
+
+    "not_applicable": {
+      "kind": "python_module",
+      "module": "gptloop_example.not_applicable",
+      "args": [],
+      "interpreter": "runtime",
+      "timeout_seconds": 60,
+      "exit_status_map": { "0": "success", "3": "inapplicable" },
+      "default_status": "failure"
+    },
+
+    "large_output": {
+      "kind": "python_module",
+      "module": "gptloop_example.large_output",
+      "args": [],
+      "interpreter": "runtime",
+      "timeout_seconds": 120
+    },
+
+    "hang": {
+      "kind": "python_module",
+      "module": "gptloop_example.hang",
+      "args": [],
+      "interpreter": "runtime",
+      "timeout_seconds": 5,
+      "default_status": "failure"
+    },
+
+    "quality_snapshot": {
+      "kind": "composite",
+      "steps": ["version", "test"],
+      "stop_on_failure": true
+    }
+  }
+}

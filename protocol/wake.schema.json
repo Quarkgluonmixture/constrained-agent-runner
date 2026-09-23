@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:constrained-agent-runner:protocol:wake:v1",
+  "title": "gpt-loop wake event",
+  "description": "POSTed by the GitHub Actions runner to http://127.0.0.1:<port>/event only for packet-terminal outcomes. Delivery is exactly-once from the user's perspective: an event is consumed only after the extension observes its marker in a ChatGPT user message. `continuation` and `quota_wait` are intentionally absent because they must not wake the conversation.",
+  "type": "object",
+  "required": ["event_id"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Stable delivery identity, '<run_id>:<run_attempt>:<issue_number>'. Re-POSTing the same id is a no-op, which is what makes duplicate notifications harmless.",
+      "examples": ["18234567890:1:42"]
+    },
+    "issue_number": { "type": "integer" },
+    "action": { "type": "string" },
+    "status": {
+      "enum": [
+        "success",
+        "failure",
+        "hard_blocker",
+        "inapplicable",
+        "environment_error",
+        "denied",
+        "timeout",
+        "invalid_request"
+      ]
+    },
+    "ok": { "type": "boolean" },
+    "job_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "timestamp": { "type": "number" }
+  },
+
+  "$defs": {
+    "deliveryState": {
+      "description": "Server-side lifecycle. Only `acknowledged` is terminal; anything short of it is retried after a restart, because an unproven delivery must never be treated as done.",
+      "enum": ["queued", "claimed", "submitted", "verified", "acknowledged"]
+    },
+    "wakeMarker": {
+      "description": "What the extension types into the conversation. The bracketed marker is the unique substring the verifier looks for.",
+      "type": "string",
+      "examples": ["go [GPT_LOOP_WAKE event=18234567890:1:42] issue=42 action=read_file status=success"]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "GPT Loop Wake",
+  "version": "1.0.0",
+  "description": "Continues a target ChatGPT conversation when a gpt-loop local job finishes. Delivery is exactly-once: an event is only consumed after the user message is observed in the conversation.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "GPT Loop Wake",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "minimum_chrome_version": "132"
+}

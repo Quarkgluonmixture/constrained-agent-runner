@@ -1,0 +1,91 @@
+<!doctype html>
+<!--
+  Mock ChatGPT composer used by tests/wake/test_content_script.py.
+
+  It reproduces the parts of the real page that content.js depends on, and only
+  those parts:
+
+    * a Lexical-style contenteditable #prompt-textarea (NOT a <textarea>, which
+      is why naive value-setting injectors fail on the real site)
+    * a single #composer-submit-button that is the SEND control when idle and
+      the STOP control while streaming -- the aliasing that once caused the
+      extension to abort the previous turn
+    * a transcript of [data-message-author-role] nodes
+    * a send handler that appends a user message only when the composer is
+      non-empty, mirroring the real disabled-send behaviour
+-->
+<html>
+<head><meta charset="utf-8"><title>Mock ChatGPT</title></head>
+<body>
+  <div id="transcript">
+    <div data-message-author-role="assistant">Previous assistant reply.</div>
+  </div>
+
+  <form id="composer-form">
+    <div id="prompt-textarea" contenteditable="true" role="textbox" data-lexical-editor="true"></div>
+    <button id="composer-submit-button" data-testid="send-button" aria-label="Send prompt" type="submit"></button>
+  </form>
+
+<script>
+(() => {
+  const input = document.getElementById('prompt-textarea');
+  const button = document.getElementById('composer-submit-button');
+  const form = document.getElementById('composer-form');
+  const transcript = document.getElementById('transcript');
+
+  // Test knobs, set from Playwright before a run.
+  window.__mock = {
+    streaming: false,       // when true the button becomes the STOP control
+    swallowSubmits: 0,      // drop this many submits, to exercise retry
+    submitCount: 0,
+    acceptedCount: 0,
+  };
+
+  function composerText() {
+    return input.innerText ?? input.textContent ?? '';
+  }
+
+  function refresh() {
+    if (window.__mock.streaming) {
+      button.setAttribute('data-testid', 'stop-button');
+      button.setAttribute('aria-label', 'Stop streaming');
+      button.disabled = false;
+    } else {
+      button.setAttribute('data-testid', 'send-button');
+      button.setAttribute('aria-label', 'Send prompt');
+      // The real composer disables send when there is nothing to send.
+      button.disabled = composerText().trim().length === 0;
+    }
+  }
+
+  function submit() {
+    window.__mock.submitCount++;
+    if (window.__mock.streaming) return;             // stop control: never sends
+    const text = composerText().trim();
+    if (!text) return;
+    if (window.__mock.swallowSubmits > 0) {
+      window.__mock.swallowSubmits--;
+      return;                                        // accepted-looking no-op
+    }
+    const node = document.createElement('div');
+    node.setAttribute('data-message-author-role', 'user');
+    node.textContent = text;
+    transcript.appendChild(node);
+    input.textContent = '';
+    window.__mock.acceptedCount++;
+    refresh();
+  }
+
+  input.addEventListener('input', refresh);
+  button.addEventListener('click', e => { e.preventDefault(); submit(); });
+  form.addEventListener('submit', e => { e.preventDefault(); submit(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+  });
+
+  window.__mock.refresh = refresh;
+  refresh();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:constrained-agent-runner:protocol:job:v1",
+  "title": "gpt-loop job request",
+  "description": "The complete immutable broker execution envelope. In the current GitHub transport this is the body of a [GPT-LOOP] issue and is read from the issues.opened event. Editing the issue afterwards cannot change what runs. Canonical project work lives in the consumer repository and is referenced by work_ref.",
+  "type": "object",
+  "required": ["protocol_version", "job_id", "project", "action"],
+  "additionalProperties": true,
+  "properties": {
+    "protocol_version": {
+      "const": 1,
+      "description": "Unknown versions fail deterministically as invalid_request."
+    },
+    "job_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "UUID chosen by the requester. Also names the stored full result."
+    },
+    "project": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "A key in the machine-local project registry. NOT a path: the request can never choose a filesystem root."
+    },
+    "work_ref": {
+      "type": "object",
+      "description": "Non-authorizing pointer back to canonical work in the consumer repository. It never selects a workspace; project placement still comes only from trusted machine-local registry policy. Legacy packets may omit this during Phase-2 migration.",
+      "required": ["repository"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^(?!\\.{1,2}/)(?![A-Za-z0-9_.-]+/\\.{1,2}$)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+          "description": "Canonical owner/repository for the project work. Dot and dot-dot path-like segments are forbidden."
+        },
+        "issue_number": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional canonical project issue/work-item number."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Optional repository-relative canonical checkpoint/plan path. Metadata only; it grants no file authority."
+        }
+      }
+    },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "A core action or one declared by the project's profile. Unknown actions fail as invalid_request."
+    },
+    "params": {
+      "type": "object",
+      "description": "Action-specific arguments. Every field is optional unless the action requires it; absent optional fields must never crash the dispatcher.",
+      "additionalProperties": true
+    },
+    "parent_event_id": {
+      "type": ["string", "null"],
+      "description": "The wake event that prompted this job, for chain auditing."
+    },
+    "note": {
+      "type": "string",
+      "description": "Free-text human context. Ignored by the dispatcher."
+    }
+  },
+  "examples": [
+    {
+      "protocol_version": 1,
+      "job_id": "3f2b9c1e-6a4d-4f8b-9c2a-1d5e7f0a3b6c",
+      "project": "example-python",
+      "work_ref": {
+        "repository": "example/example-python",
+        "issue_number": 42
+      },
+      "action": "read_file",
+      "params": { "path": "README.md" }
+    }
+  ]
+}

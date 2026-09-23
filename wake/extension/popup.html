@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>GPT Loop Wake</h1>
+
+  <div class="row"><span class="k">Daemon</span><span id="daemon" class="v">checking…</span></div>
+  <div class="row"><span class="k">Runner</span><span id="runner" class="v">—</span></div>
+  <div class="row"><span class="k">Target</span><span id="target" class="v">—</span></div>
+  <div class="row"><span class="k">Pending</span><span id="pending" class="v">—</span></div>
+  <div class="row"><span class="k">Last submitted</span><span id="submitted" class="v">—</span></div>
+  <div class="row"><span class="k">Last verified</span><span id="verified" class="v">—</span></div>
+  <div class="row"><span class="k">Last error</span><span id="error" class="v">—</span></div>
+
+  <div class="actions">
+    <button id="poll">Poll now</button>
+    <button id="options">Settings</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

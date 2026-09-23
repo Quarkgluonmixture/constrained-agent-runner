@@ -1,0 +1,79 @@
+name: Control Plane Tests
+
+# Runs only on GitHub-hosted runners. This repository is public, so it must
+# never contain a workflow that targets a self-hosted runner (see README.md,
+# "Security model"). The self-hosted job runner lives in
+# deploy/private-fork/loop-runner.yml as an inactive template.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# PR checks are intentionally supersedable: once a newer commit exists on the
+# same PR, running the old candidate proves nothing about the merge candidate.
+concurrency:
+  group: control-plane-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create isolated dispatcher fixture environment
+        shell: pwsh
+        run: |
+          $python = (Get-Command python -ErrorAction Stop).Source
+          $venv = Join-Path $env:GITHUB_WORKSPACE 'examples\python-project\.venv'
+          & $python -m venv $venv
+          if ($LASTEXITCODE -ne 0) { throw 'could not create test fixture venv' }
+          $fixturePython = Join-Path $venv 'Scripts\python.exe'
+          & $fixturePython -m pip install --disable-pip-version-check pytest
+          if ($LASTEXITCODE -ne 0) { throw 'could not install pytest into isolated fixture venv' }
+
+      - name: Install Playwright for the content-script browser test
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          if ($LASTEXITCODE -ne 0) { throw 'could not install playwright' }
+          python -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'could not install chromium' }
+
+      - name: Run Windows-compatible control-plane regressions
+        shell: pwsh
+        run: |
+          $python = (Get-Command python -ErrorAction Stop).Source
+          & pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Run-WindowsControlPlaneCi.ps1 -PythonExe $python -ContentScriptPython $python
+          if ($LASTEXITCODE -ne 0) { throw "Windows control-plane tests failed with exit code $LASTEXITCODE" }
+
+  posix-durable:
+    # Durable continuation relies on POSIX process groups and fails closed on
+    # Windows, so its worker tests run on a hosted Linux runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Durable worker and static invariants
+        run: |
+          python tests/durable/test_durable_job.py
+          python tests/durable/test_durable_static.py

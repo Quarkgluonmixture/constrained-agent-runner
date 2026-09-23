@@ -1,0 +1,48 @@
+{
+  "name": "python",
+  "description": "Generic Python project profile. Interpreters are never guessed: each action names a role ('runtime' or 'test') that projects.json must map to an explicit executable.",
+
+  "allowed_roots": [
+    "src/",
+    "tests/",
+    "docs/",
+    "scripts/"
+  ],
+  "allowed_files": [
+    "README.md",
+    "pyproject.toml",
+    "requirements.txt",
+    "requirements-dev.txt",
+    "Makefile"
+  ],
+
+  "env": {
+    "PYTHONPATH": "{workspace}/src"
+  },
+
+  "actions": {
+    "test": {
+      "kind": "python_module",
+      "module": "pytest",
+      "args": ["-q"],
+      "interpreter": "test",
+      "timeout_seconds": 1800,
+      "exit_status_map": {
+        "0": "success",
+        "1": "failure",
+        "2": "environment_error",
+        "3": "environment_error",
+        "4": "invalid_request",
+        "5": "inapplicable"
+      },
+      "default_status": "failure"
+    },
+
+    "quality_snapshot": {
+      "kind": "composite",
+      "description": "What 'quality' means is defined here by the project, not by the control plane.",
+      "steps": ["test"],
+      "stop_on_failure": true
+    }
+  }
+}

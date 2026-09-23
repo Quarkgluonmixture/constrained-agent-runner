@@ -1,0 +1,12 @@
+{
+  "name": "generic",
+  "description": "Read-only surface for a project that has not declared any runnable actions.",
+  "allowed_roots": [
+    "docs/",
+    "src/"
+  ],
+  "allowed_files": [
+    "README.md"
+  ],
+  "actions": {}
+}
