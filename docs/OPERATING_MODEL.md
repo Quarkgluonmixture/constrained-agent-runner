@@ -1,5 +1,7 @@
 # GPT Loop Operating Model
 
+**Scope update — 2026-10-31:** this operating model records the retained GPT Loop public reference. Ownership, transport and security contracts below still describe that reference. The target concurrency/node model and migration phases preserve an earlier design sketch, not an active independent product roadmap. Long-term evolution belongs to QCP, as recorded in [project positioning](../README.md); no completed migration or runtime retirement is asserted.
+
 ## Purpose
 
 GPT Loop is a shared execution control plane. It is **not** the workspace,
@@ -243,7 +245,9 @@ To prevent split-brain state:
 - GPT Loop consumer-specific docs are case studies/migration notes, never live
   project authority.
 
-## Migration phases
+## Historical migration sketch
+
+The phases below retain the earlier plan and its recorded cursor. They do not authorize new migration work or report current progress.
 
 ### Phase 1 — semantic/docs refactor ✅
 
@@ -252,7 +256,7 @@ To prevent split-brain state:
 - inventoried consumer operating docs;
 - preserved historical evidence instead of rewriting it.
 
-### Phase 2 — transport-linked project ownership ← current
+### Phase 2 — transport-linked project ownership (historical cursor)
 
 - support both project-native adapters and the central broker around one shared
   mechanism;

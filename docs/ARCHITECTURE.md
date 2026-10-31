@@ -1,5 +1,7 @@
 # Architecture
 
+**Scope update — 2026-10-31:** this is the architecture of the retained public GPT Loop reference. The Phase 2/3/4 target sections below preserve the earlier design, not a current implementation commitment for this repository. Long-term evolution belongs to QCP; no migration or runtime retirement is asserted here. See [project positioning](../README.md).
+
 This document describes both the **current implementation** and the staged
 target architecture. The ownership rules are canonicalized in
 [`OPERATING_MODEL.md`](OPERATING_MODEL.md).
