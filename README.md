@@ -1,5 +1,7 @@
 # constrained-agent-runner
 
+**Project positioning (owner decision, 2026-10-31):** this repository preserves the early GPT Loop implementation as a public engineering reference. Long-term development of cross-device constrained Agent execution belongs to QCP. The implementation and deployment instructions below document this reference; they do not establish a competing product roadmap or prove that its capabilities have already migrated to QCP.
+
 A control plane that lets a web-based chat agent (the ChatGPT web app, used as
 the "brain") send **constrained** jobs to your own machine, using GitHub as the
 durable transport and audit log, and get structured results back into the same
